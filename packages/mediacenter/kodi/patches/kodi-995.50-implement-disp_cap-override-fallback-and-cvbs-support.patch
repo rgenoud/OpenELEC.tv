@@ -1,0 +1,228 @@
+diff -Naur kodi-15.2-02e7013.orig/xbmc/guilib/gui3d.h kodi-15.2-02e7013/xbmc/guilib/gui3d.h
+--- kodi-15.2-02e7013.orig/xbmc/guilib/gui3d.h	2015-12-21 20:20:58.902267954 +0100
++++ kodi-15.2-02e7013/xbmc/guilib/gui3d.h	2015-12-21 20:21:32.966266707 +0100
+@@ -36,11 +36,13 @@
+ #define D3DPRESENTFLAG_PROGRESSIVE  4
+ #define D3DPRESENTFLAG_MODE3DSBS    8
+ #define D3DPRESENTFLAG_MODE3DTB    16
++#define D3DPRESENTFLAG_CVBS        32
+ 
+ /* what types are important for mode setting */
+ #define D3DPRESENTFLAG_MODEMASK ( D3DPRESENTFLAG_INTERLACED \
+                                 | D3DPRESENTFLAG_MODE3DSBS  \
+-                                | D3DPRESENTFLAG_MODE3DTB   )
++                                | D3DPRESENTFLAG_MODE3DTB   \
++                                | D3DPRESENTFLAG_CVBS       )
+ 
+ #define D3DFMT_LIN_A8R8G8B8 D3DFMT_A8R8G8B8
+ #define D3DFMT_LIN_X8R8G8B8 D3DFMT_X8R8G8B8
+diff -Naur kodi-15.2-02e7013.orig/xbmc/utils/AMLUtils.cpp kodi-15.2-02e7013/xbmc/utils/AMLUtils.cpp
+--- kodi-15.2-02e7013.orig/xbmc/utils/AMLUtils.cpp	2015-12-21 20:20:58.914267953 +0100
++++ kodi-15.2-02e7013/xbmc/utils/AMLUtils.cpp	2015-12-21 20:21:41.750266386 +0100
+@@ -329,6 +329,60 @@
+     res->fRefreshRate = 60;
+     res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
+   }
++  else if (StringUtils::EqualsNoCase(fromMode, "480i"))
++  {
++    res->iWidth = 720;
++    res->iHeight= 480;
++    res->iScreenWidth = 720;
++    res->iScreenHeight= 480;
++    res->fRefreshRate = 60;
++    res->dwFlags = D3DPRESENTFLAG_INTERLACED;
++  }
++  else if (StringUtils::EqualsNoCase(fromMode, "480cvbs"))
++  {
++    res->iWidth = 720;
++    res->iHeight= 480;
++    res->iScreenWidth = 720;
++    res->iScreenHeight= 480;
++    res->fRefreshRate = 60;
++    res->dwFlags = D3DPRESENTFLAG_INTERLACED | D3DPRESENTFLAG_CVBS;
++  }
++  else if (StringUtils::EqualsNoCase(fromMode, "576i"))
++  {
++    res->iWidth = 720;
++    res->iHeight= 576;
++    res->iScreenWidth = 720;
++    res->iScreenHeight= 576;
++    res->fRefreshRate = 50;
++    res->dwFlags = D3DPRESENTFLAG_INTERLACED;
++  }
++  else if (StringUtils::EqualsNoCase(fromMode, "576cvbs"))
++  {
++    res->iWidth = 720;
++    res->iHeight= 576;
++    res->iScreenWidth = 720;
++    res->iScreenHeight= 576;
++    res->fRefreshRate = 50;
++    res->dwFlags = D3DPRESENTFLAG_INTERLACED | D3DPRESENTFLAG_CVBS;
++  }
++  else if (StringUtils::EqualsNoCase(fromMode, "480p"))
++  {
++    res->iWidth = 720;
++    res->iHeight= 480;
++    res->iScreenWidth = 720;
++    res->iScreenHeight= 480;
++    res->fRefreshRate = 60;
++    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
++  }
++  else if (StringUtils::EqualsNoCase(fromMode, "576p"))
++  {
++    res->iWidth = 720;
++    res->iHeight= 576;
++    res->iScreenWidth = 720;
++    res->iScreenHeight= 576;
++    res->fRefreshRate = 50;
++    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
++  }
+   else if (StringUtils::EqualsNoCase(fromMode, "720p"))
+   {
+     res->iWidth = 1280;
+@@ -492,8 +546,8 @@
+   res->bFullScreen   = true;
+   res->iSubtitles    = (int)(0.965 * res->iHeight);
+   res->fPixelRatio   = 1.0f;
+-  res->strMode       = StringUtils::Format("%dx%d @ %.2f%s - Full Screen", res->iScreenWidth, res->iScreenHeight, res->fRefreshRate,
+-    res->dwFlags & D3DPRESENTFLAG_INTERLACED ? "i" : "");
++  res->strMode       = StringUtils::Format("%dx%d @ %.2f%s%s - Full Screen", res->iScreenWidth, res->iScreenHeight, res->fRefreshRate,
++    res->dwFlags & D3DPRESENTFLAG_INTERLACED ? "i" : "", res->dwFlags & D3DPRESENTFLAG_CVBS ? " (CVBS)" : "");
+ 
+   return res->iWidth > 0 && res->iHeight> 0;
+ }
+diff -Naur kodi-15.2-02e7013.orig/xbmc/windowing/egl/EGLNativeTypeAmlogic.cpp kodi-15.2-02e7013/xbmc/windowing/egl/EGLNativeTypeAmlogic.cpp
+--- kodi-15.2-02e7013.orig/xbmc/windowing/egl/EGLNativeTypeAmlogic.cpp	2015-12-21 20:20:58.870267955 +0100
++++ kodi-15.2-02e7013/xbmc/windowing/egl/EGLNativeTypeAmlogic.cpp	2015-12-21 20:21:18.682267230 +0100
+@@ -23,6 +23,8 @@
+ #include "utils/AMLUtils.h"
+ #include "utils/StringUtils.h"
+ #include "utils/SysfsUtils.h"
++#include "filesystem/SpecialProtocol.h"
++#include "utils/log.h"
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -160,6 +162,23 @@
+           else
+             SetDisplayResolution("1080p");
+           break;
++        case 720:
++          if (res.dwFlags & D3DPRESENTFLAG_INTERLACED)
++          {
++            if (res.dwFlags & D3DPRESENTFLAG_CVBS) 
++            {
++              SetDisplayResolution("480cvbs");
++            }
++            else
++            {
++              SetDisplayResolution("480i");
++            }
++          }
++          else
++          {
++            SetDisplayResolution("480p");
++          }
++          break;
+       }
+       break;
+     case 50:
+@@ -175,6 +194,23 @@
+           else
+             SetDisplayResolution("1080p50hz");
+           break;
++        case 720:
++          if (res.dwFlags & D3DPRESENTFLAG_INTERLACED)
++          {
++            if (res.dwFlags & D3DPRESENTFLAG_CVBS) 
++            {
++              SetDisplayResolution("576cvbs");
++            }
++            else
++            {
++              SetDisplayResolution("576i");
++            }
++          }
++          else
++          {
++            SetDisplayResolution("576p");
++          }
++          break;
+       }
+       break;
+     case 30:
+@@ -190,8 +226,38 @@
+ 
+ bool CEGLNativeTypeAmlogic::ProbeResolutions(std::vector<RESOLUTION_INFO> &resolutions)
+ {
+-  std::string valstr;
+-  SysfsUtils::GetString("/sys/class/amhdmitx/amhdmitx0/disp_cap", valstr);
++  std::string valstr, overridefile, fallbackfile;
++  overridefile = CSpecialProtocol::TranslatePath("special://home/userdata/override_cap");
++  fallbackfile = CSpecialProtocol::TranslatePath("special://home/userdata/fallback_cap");
++
++  valstr="";
++
++  if (SysfsUtils::Has(overridefile))
++  {
++    CLog::Log(LOGNOTICE, "Found file 'override_cap': Values for display capabilities will override any driver information.");
++    if (SysfsUtils::GetString(overridefile, valstr) < 0)
++      valstr="";
++    if (valstr.length()==0)    
++      CLog::Log(LOGWARNING, "'override_cap' did not contain any information.");   
++  }
++
++  if (valstr.length()==0)
++  {
++    if (SysfsUtils::GetString("/sys/class/amhdmitx/amhdmitx0/disp_cap", valstr) < 0)
++      valstr="";
++    if (valstr.length()==0)    
++      CLog::Log(LOGWARNING, "Driver did not report any display capabilities.");   
++  }
++
++  if ((valstr.length()==0) && (SysfsUtils::Has(fallbackfile)))
++  {
++    CLog::Log(LOGNOTICE, "Found file 'fallback_cap': Fallback values for display capabilities will be used since driver does not deliver any information.");
++    if (SysfsUtils::GetString(fallbackfile, valstr) < 0)
++      valstr="";
++    if (valstr.length()==0)    
++      CLog::Log(LOGWARNING, "'fallback_cap' did not contain any information.");   
++  }
++
+   std::vector<std::string> probe_str = StringUtils::Split(valstr, "\n");
+ 
+   resolutions.clear();
+diff -Naur kodi-15.2-02e7013.orig/xbmc/windowing/egl/WinSystemEGL.cpp kodi-15.2-02e7013/xbmc/windowing/egl/WinSystemEGL.cpp
+--- kodi-15.2-02e7013.orig/xbmc/windowing/egl/WinSystemEGL.cpp	2015-12-21 20:20:58.870267955 +0100
++++ kodi-15.2-02e7013/xbmc/windowing/egl/WinSystemEGL.cpp	2015-12-21 20:21:56.822265834 +0100
+@@ -396,14 +396,15 @@
+     g_graphicsContext.ResetOverscan(resolutions[i]);
+     CDisplaySettings::Get().GetResolutionInfo(res_index) = resolutions[i];
+ 
+-    CLog::Log(LOGNOTICE, "Found resolution %d x %d for display %d with %d x %d%s @ %f Hz\n",
++    CLog::Log(LOGNOTICE, "Found resolution %d x %d for display %d with %d x %d%s @ %f Hz%s\n",
+       resolutions[i].iWidth,
+       resolutions[i].iHeight,
+       resolutions[i].iScreen,
+       resolutions[i].iScreenWidth,
+       resolutions[i].iScreenHeight,
+       resolutions[i].dwFlags & D3DPRESENTFLAG_INTERLACED ? "i" : "",
+-      resolutions[i].fRefreshRate);
++      resolutions[i].fRefreshRate,
++      resolutions[i].dwFlags & D3DPRESENTFLAG_CVBS ? " (CVBS)" : "");
+ 
+     if(resDesktop.iWidth == resolutions[i].iWidth &&
+        resDesktop.iHeight == resolutions[i].iHeight &&
+@@ -421,10 +422,11 @@
+   // swap desktop index for desktop res if available
+   if (ResDesktop != RES_INVALID)
+   {
+-    CLog::Log(LOGNOTICE, "Found (%dx%d%s@%f) at %d, setting to RES_DESKTOP at %d",
++    CLog::Log(LOGNOTICE, "Found (%dx%d%s@%f%s) at %d, setting to RES_DESKTOP at %d",
+       resDesktop.iWidth, resDesktop.iHeight,
+       resDesktop.dwFlags & D3DPRESENTFLAG_INTERLACED ? "i" : "",
+       resDesktop.fRefreshRate,
++      resDesktop.dwFlags & D3DPRESENTFLAG_CVBS ? " [CVBS]" : "",
+       (int)ResDesktop, (int)RES_DESKTOP);
+ 
+     RESOLUTION_INFO desktop = CDisplaySettings::Get().GetResolutionInfo(RES_DESKTOP);
