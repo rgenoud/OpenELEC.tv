@@ -1,3 +1,30 @@
+**Unofficial Openelec fork for CVBS support**
+This is a fork of Openelec that supports CVBS output.
+It has only been tested on Wetek Openelec edition (aka Wetek play - Openelec).
+
+Quick Howto:
+```
+git clone -b openelec-6.0-cvbs https://github.com/rgenoud/OpenELEC.tv.git
+cd OpenELEC.tv
+PROJECT=WeTek_Play ARCH=arm time make image # this takes HOURS (like 10 hours the first time, more or less)
+```
+NB: This will use a lot of disk space in OpenELEC.tv (~16Gio) and in ~/.ccache-openelec (~3Gio).
+You can use another directoty for ccache with the option CCACHE_DIR=/my_scratch_partition/ccache-openelec
+ccache is usefull for speed-up next compilations.
+
+Once it's finished, you can copy the tar for update:
+```
+scp target/OpenELEC-WeTek_Play.arm-6.0.3cvbs_noblank.tar wetek_ip_address:/storage/.update/
+```
+At last, you need to set the fallback cap:
+```
+ssh wetek_ip_address "echo 576cvbs > /storage/.kodi/userdata/fallback_cap"
+```
+NB: 480cvbs is also supported.
+NB2: override_cap can be used instead of fallback_cap. In this case, HDMI won't work and kodi will use CVBS by default.
+
+Enjoy !
+
 [OpenELEC](http://www.openelec.tv)
 
 # OpenELEC - Open Embedded Linux Entertainment Center
